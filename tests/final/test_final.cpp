@@ -62,14 +62,11 @@ TEST(heap_pops_in_order) {
 TEST(heap_top_k_edge_cases) {
     std::vector<int> numbers{5, 1, 9, 3, 7};
 
-    CHECK_EQ(top_k(numbers, 2),
-             (std::vector<int>{9, 7}));
+    CHECK_EQ(top_k(numbers, 2), (std::vector<int>{9, 7}));
 
-    CHECK_EQ(top_k(numbers, 0),
-             (std::vector<int>{}));
+    CHECK_EQ(top_k(numbers, 0), (std::vector<int>{}));
 
-    CHECK_EQ(top_k(numbers, 10),
-             (std::vector<int>{9, 7, 5, 3, 1}));
+    CHECK_EQ(top_k(numbers, 10), (std::vector<int>{9, 7, 5, 3, 1}));
 }
 
 TEST(heap_empty_exceptions) {
@@ -109,6 +106,88 @@ TEST(lru_evicts_least_recently_used) {
     CHECK(!c.contains("b"));
     CHECK_EQ(c.keys_mru_to_lru(), (std::vector<std::string>{"c", "a"}));
     CHECK_EQ(c.stats().evictions, std::size_t{1});
+}
+
+TEST(lru_update_and_stats) {
+    LruCache<std::string, int> cache(2);
+
+    cache.put("a", 1);
+    cache.put("b", 2);
+    cache.put("a", 10);
+
+    CHECK_EQ(cache.size(), std::size_t{2});
+    CHECK_EQ(cache.stats().evictions, std::size_t{0});
+
+    CHECK_EQ(cache.keys_mru_to_lru(), (std::vector<std::string>{"a", "b"}));
+
+    const int* value = cache.get("a");
+
+    REQUIRE(value != nullptr);
+    CHECK_EQ(*value, 10);
+
+    CHECK(cache.get("missing") == nullptr);
+
+    CHECK_EQ(cache.stats().hits, std::size_t{1});
+    CHECK_EQ(cache.stats().misses, std::size_t{1});
+
+    cache.clear();
+
+    CHECK_EQ(cache.size(), std::size_t{0});
+}
+
+TEST(lru_capacity_limits) {
+    LruCache<std::string, int> empty(0);
+
+    empty.put("a", 1);
+
+    CHECK_EQ(empty.size(), std::size_t{0});
+    CHECK(!empty.contains("a"));
+
+    LruCache<std::string, int> cache(1);
+
+    cache.put("a", 1);
+    cache.put("b", 2);
+
+    CHECK(!cache.contains("a"));
+    CHECK(cache.contains("b"));
+
+    CHECK_EQ(cache.size(), std::size_t{1});
+    CHECK_EQ(cache.stats().evictions, std::size_t{1});
+
+    CHECK(cache.erase("b"));
+    CHECK(!cache.erase("b"));
+    CHECK_EQ(cache.size(), std::size_t{0});
+}
+
+TEST(lru_erase_positions) {
+    LruCache<std::string, int> cache(4);
+
+    cache.put("a", 1);
+    cache.put("b", 2);
+    cache.put("c", 3);
+    cache.put("d", 4);
+
+    CHECK_EQ(cache.keys_mru_to_lru(), (std::vector<std::string>{"d", "c", "b", "a"}));
+
+    // Remove the head
+    CHECK(cache.erase("d"));
+    CHECK_EQ(cache.keys_mru_to_lru(), (std::vector<std::string>{"c", "b", "a"}));
+
+    // Remove a middle node
+    CHECK(cache.erase("b"));
+    CHECK_EQ(cache.keys_mru_to_lru(), (std::vector<std::string>{"c", "a"}));
+
+    // Remove the tail
+    CHECK(cache.erase("a"));
+    CHECK_EQ(cache.keys_mru_to_lru(), (std::vector<std::string>{"c"}));
+
+    // Remove the last node
+    CHECK(cache.erase("c"));
+    CHECK(cache.keys_mru_to_lru().empty());
+    CHECK_EQ(cache.size(), std::size_t{0});
+
+    // Explicit removal should not count as eviction
+    CHECK_EQ(cache.stats().evictions, std::size_t{0});
 }
 
 // Example 3 (bst): removing a node with two children keeps the tree sorted,
