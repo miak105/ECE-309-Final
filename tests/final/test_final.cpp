@@ -342,6 +342,50 @@ TEST(ctx_spec_example) {
     CHECK(!p.over_budget);
 }
 
+TEST(ctx_protected_over_budget) {
+    std::vector<ContextItem> items{
+        {Role::System, 7, false},
+        {Role::Tool, 4, false},
+        {Role::Assistant, 6, true},
+        {Role::User, 2, false},
+        {Role::Tool, 5, false},
+        {Role::User, 8, false}
+    };
+
+    ContextPlan plan = select_context(items, 20, 1);
+
+    CHECK_EQ(plan.keep, (std::vector<std::size_t>{0, 2, 5}));
+
+    CHECK_EQ(plan.total_tokens, std::size_t{21});
+    CHECK(plan.over_budget);
+}
+
+TEST(ctx_priority_and_recent_boundary) {
+    std::vector<ContextItem> items{
+        {Role::System, 4, false},
+        {Role::Assistant, 4, false},
+        {Role::Tool, 4, false},
+        {Role::Tool, 4, false},
+        {Role::Assistant, 4, false},
+        {Role::User, 4, false},
+        {Role::Tool, 4, false},
+        {Role::User, 4, false}
+    };
+
+    ContextPlan plan = select_context(items, 20, 2);
+
+    CHECK_EQ(plan.keep, (std::vector<std::size_t>{0, 4, 5, 6, 7}));
+
+    CHECK_EQ(plan.total_tokens, std::size_t{20});
+    CHECK(!plan.over_budget);
+
+    ContextPlan plan2 = select_context(items, 10, 100);
+
+    CHECK_EQ(plan2.keep.size(), std::size_t{8});
+    CHECK_EQ(plan2.total_tokens, std::size_t{32});
+    CHECK(plan2.over_budget);
+}
+
 // =========================================================================
 // Policy — 2 examples
 // =========================================================================
