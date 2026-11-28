@@ -43,6 +43,10 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <algorithm>
+#include <cstdint>
+#include <iostream>
+#include <random>
 
 // =========================================================================
 // Memory — 4 examples
@@ -203,6 +207,122 @@ TEST(bst_remove_two_children) {
     REQUIRE(t.find(80) != nullptr);
     CHECK_EQ(t.find(80)->text, std::string("m80"));
     CHECK_EQ(t.size(), std::size_t{4});
+}
+
+TEST(bst_duplicate_leaf_one_child) {
+    MemoryIndex t;
+
+    for (std::uint64_t id : {10, 5, 15, 3, 7, 12, 18, 11}) {
+        REQUIRE(t.insert(MemoryRecord{id, "original"}));
+    }
+
+    CHECK_EQ(t.height(), std::size_t{4});
+
+    CHECK(!t.insert(MemoryRecord{10, "duplicate"}));
+    CHECK_EQ(t.size(), std::size_t{8});
+
+    REQUIRE(t.find(10) != nullptr);
+    CHECK_EQ(t.find(10)->text, std::string("original"));
+
+    CHECK(t.remove(3));  // leaf
+    CHECK(t.remove(12)); // one child
+
+    CHECK(!t.remove(99));
+    CHECK(t.find(3) == nullptr);
+    CHECK(t.find(12) == nullptr);
+    CHECK(t.find(11) != nullptr);
+
+    std::vector<std::uint64_t> ids;
+
+    t.for_each_in_order([&](const MemoryRecord& rec) {
+        ids.push_back(rec.id);
+    });
+
+    CHECK_EQ(ids, (std::vector<std::uint64_t>{5, 7, 10, 11, 15, 18}));
+
+    CHECK_EQ(t.size(), std::size_t{6});
+    CHECK_EQ(t.height(), std::size_t{3});
+}
+
+TEST(bst_empty_and_root_removal) {
+    MemoryIndex t;
+
+    CHECK_EQ(t.size(), std::size_t{0});
+    CHECK_EQ(t.height(), std::size_t{0});
+    CHECK(t.find(10) == nullptr);
+    CHECK(!t.remove(10));
+
+    REQUIRE(t.insert(MemoryRecord{10, "root"}));
+
+    CHECK_EQ(t.height(), std::size_t{1});
+
+    CHECK(t.remove(10));
+    CHECK_EQ(t.size(), std::size_t{0});
+    CHECK_EQ(t.height(), std::size_t{0});
+
+    REQUIRE(t.insert(MemoryRecord{10, "root"}));
+    REQUIRE(t.insert(MemoryRecord{5, "left"}));
+
+    CHECK(t.remove(10));
+    REQUIRE(t.find(5) != nullptr);
+    CHECK_EQ(t.size(), std::size_t{1});
+
+    t.clear();
+    t.clear();
+
+    CHECK_EQ(t.size(), std::size_t{0});
+    CHECK_EQ(t.height(), std::size_t{0});
+}
+
+TEST(bst_successor_with_right_child) {
+    MemoryIndex t;
+
+    for (std::uint64_t id : {50, 30, 80, 70, 90, 75}) {
+        REQUIRE(t.insert(MemoryRecord{id, "test"}));
+    }
+
+    CHECK(t.remove(50));
+
+    std::vector<std::uint64_t> ids;
+
+    t.for_each_in_order([&](const MemoryRecord& rec) {
+        ids.push_back(rec.id);
+    });
+
+    CHECK_EQ(ids, (std::vector<std::uint64_t>{30, 70, 75, 80, 90}));
+
+    CHECK(t.find(50) == nullptr);
+    CHECK(t.find(75) != nullptr);
+    CHECK_EQ(t.size(), std::size_t{5});
+}
+
+TEST(bst_sequential_vs_shuffled_height) {
+    MemoryIndex ordered;
+    MemoryIndex shuffled;
+
+    for (std::uint64_t id = 1; id <= 1000; ++id) {
+        REQUIRE(ordered.insert(MemoryRecord{id, "memory"}));
+    }
+
+    std::vector<std::uint64_t> ids;
+
+    for (std::uint64_t id = 1; id <= 1000; ++id) {
+        ids.push_back(id);
+    }
+
+    std::mt19937 rng(309);
+    std::shuffle(ids.begin(), ids.end(), rng);
+
+    for (std::uint64_t id : ids) {
+        REQUIRE(shuffled.insert(MemoryRecord{id, "memory"}));
+    }
+
+    CHECK_EQ(ordered.height(), std::size_t{1000});
+    CHECK(shuffled.height() < ordered.height());
+
+    std::cout << "BST sequential height: " << ordered.height() << "\n";
+
+    std::cout << "BST shuffled height: " << shuffled.height() << "\n";
 }
 
 // Example 4 (ctx): the worked example in spec §4.4.
